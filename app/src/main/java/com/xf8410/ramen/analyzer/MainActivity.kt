@@ -46,6 +46,53 @@ class MainActivity : ComponentActivity() {
             }
         })
 
+        // 二次 hook 安装（必须进游戏主界面后才能点）
+        root.addView(Button(this).apply {
+            text = "安装 Sniff+Md5 Hook\n（进游戏主界面后点）"
+            setOnClickListener {
+                Toast.makeText(this@MainActivity, "安装中...", Toast.LENGTH_SHORT).show()
+                Thread {
+                    val soClient = SoClient()
+                    val results = soClient.installHooks()
+                    val status = soClient.checkHookStatus()
+                    runOnUiThread {
+                        val msg = if (status?.ready == true) {
+                            "Hook 安装成功！\n" +
+                            "MakeMd5: ✓  Compress: ✓  Decompress: ✓  Post: ✓\n" +
+                            "Sniff: ${if (status.sniffEnabled) "✓" else "✗"}"
+                        } else {
+                            "Hook 安装可能未完成:\n" +
+                            results.filter { !it.second }.joinToString("\n") { "  ✗ ${it.first}" }
+                        }
+                        Toast.makeText(this@MainActivity, msg, Toast.LENGTH_LONG).show()
+                        statusText.text = msg
+                    }
+                }.start()
+            }
+        })
+
+        // 检查 hook 状态
+        root.addView(Button(this).apply {
+            text = "检查 Hook 状态"
+            setOnClickListener {
+                Thread {
+                    val status = SoClient().checkHookStatus()
+                    runOnUiThread {
+                        statusText.text = status?.let {
+                            buildString {
+                                appendLine("MakeMd5: ${if (it.makemd5Hooked) "✓" else "✗"}")
+                                appendLine("Compress: ${if (it.compressHooked) "✓" else "✗"}")
+                                appendLine("Decompress: ${if (it.decompressHooked) "✓" else "✗"}")
+                                appendLine("Post: ${if (it.postHooked) "✓" else "✗"}")
+                                appendLine("Sniff: ${if (it.sniffEnabled) "✓" else "✗"}")
+                                appendLine("Ready: ${if (it.ready) "✓" else "✗"}")
+                            }
+                        } ?: "SO 未连接"
+                    }
+                }.start()
+            }
+        })
+
         // 手动采集
         root.addView(Button(this).apply {
             text = "手动采集快照 (JSON)"
