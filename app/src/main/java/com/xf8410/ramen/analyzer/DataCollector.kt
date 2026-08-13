@@ -193,12 +193,22 @@ class DataCollector(
 
     /**
      * 采集全部拉面杯相关端点
-     * 分两类：
-     * 1. 调试端点（主动读内存，可能触发闪退，低频调用）
-     * 2. sniff 端点（被动拦截协议，不额外读内存，安全）
+     * 分三类：
+     * 1. md5log（发包明文，含完整请求JSON+动作参数，不读内存，安全）
+     * 2. sniff 端点（被动拦截协议，不读内存，安全）
+     * 3. 调试端点（主动读内存，可能触发闪退，低频调用）
      */
     fun captureAllRamenEndpoints(): List<File> {
         val files = mutableListOf<File>()
+
+        // === md5log（发包明文，最关键）===
+        // MakeMd5 的 input = 游戏请求 JSON 明文
+        // 包含完整的动作参数：训练类型/试吃会选择/地区选择/RMJ结算等
+        // 通过动作顺序还原回合内操作序列
+        captureMd5Log()?.let { files.add(it) }
+
+        // === sniff 端点（被动拦截协议，不读内存）===
+        captureSniffData()?.let { files.add(it) }
 
         // === 调试端点（主动读内存，低频）===
         val debugEndpoints = listOf(
@@ -218,10 +228,77 @@ class DataCollector(
             captureRawEndpoint(path, label)?.let { files.add(it) }
         }
 
-        // === sniff 端点（被动拦截协议，不读内存）===
-        captureSniffData()?.let { files.add(it) }
-
         return files
+    }
+
+    /**
+     * 采集 /api/md5log — 游戏发包明文
+     *
+     * hlpatch hook 了 Cryptographer.MakeMd5(string) → string
+     * input = 游戏请求 JSON 明文（加密前）
+     * output = MD5 签名
+     *
+     * 这些 input 包含完整的游戏动作参数：
+     * - single_mode_ramen/tasting 的配方+地区+代用数
+     * - single_mode_ramen/check_point 的结算参数
+     * - single_mode_ramen/region_select 的地区选择
+     * - 训练请求的 train_type/训练等级
+     * - 比赛请求的 race_id
+     *
+     * 通过时间顺序可以还原一回合内的操作序列：
+     *   训练 → 试吃会 → 地区选择 → RMJ结算
+     */
+    fun captureMd5Log(): File? {
+        return try {
+            val req = Request.Builder()
+                .url("http://$soHost:$soPort/api/md5log")
+                .get()
+                .build()
+            client.newCall(req).execute().use { resp ->
+                if (!resp.isSuccessful) return null
+                val rawText = resp.body?.string() ?: return null
+
+                val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US)
+                    .apply { timeZone = TimeZone.getTimeZone("Asia/Shanghai") }
+                    .format(Date())
+
+                val file = File(localDir, "md5log_${timestamp}.txt")
+                file.writeText(buildString {
+                    appendLine("=== MD5 LOG (发包明文) ===")
+                    appendLine("Timestamp: $timestamp")
+                    appendLine("Source: Cryptographer.MakeMd5 hook")
+                    appendLine("Input = 游戏请求JSON明文（加密前）")
+                    appendLine("Output = MD5签名")
+                    appendLine()
+                    appendLine("=== RAW RESPONSE ===")
+                    appendLine(rawText)
+                    appendLine()
+                    appendLine("=== 提取的拉面杯相关请求 ===")
+
+                    // 从 md5log 的 input 里筛选拉面杯相关请求
+                    // input 通常是 JSON 字符串，包含 action/path/scenario 等字段
+                    val lines = rawText.split("\\n", "\n")
+                    for (line in lines) {
+                        if (line.contains("ramen") ||
+                            line.contains("tasting") ||
+                            line.contains("check_point") ||
+                            line.contains("region_select") ||
+                            line.contains("uraf") ||
+                            line.contains("finals") ||
+                            line.contains("single_mode_14") ||
+                            line.contains("train") ||
+                            line.contains("skill")) {
+                            appendLine(line)
+                        }
+                    }
+                })
+
+                pendingUploads.add(file)
+                file
+            }
+        } catch (e: Exception) {
+            null
+        }
     }
 
     /**
@@ -366,9 +443,11 @@ class DataCollector(
             else -> return false
         }
         capture(label, turn)
-        // 关键回合同时采集全部端点的二进制明文
-        captureRawEndpoint("/debug/ramen_planner_state", "${label}_planner")
-        captureRawEndpoint("/debug/ramenfields", "${label}_fields")
+        // 关键回合采集发包明文（不读内存，安全）
+        captureMd5Log()?.let { 
+            // 重命名加上回合标记
+            it.renameTo(File(it.parent, "${turn}_${it.name}"))
+        }
         return true
     }
 }

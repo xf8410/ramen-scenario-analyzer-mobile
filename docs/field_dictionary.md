@@ -3,6 +3,38 @@
 > 本文档解释 `/summary` 端点返回的每个字段的含义、数据类型、取值范围和业务语义。
 > 证据来源：hlpatch IL2CPP 内存读取 + umamusume-scenario-mechanics 逆向文档。
 
+## 数据采集三层
+
+### 层 1：/api/md5log — 游戏发包明文（最关键）
+
+hlpatch hook 了 `Cryptographer.MakeMd5(string input) → string output`。
+- **input** = 游戏请求 JSON 明文（加密压缩前），包含完整的动作参数
+- **output** = MD5 签名
+
+这是还原游戏动作顺序的核心数据源。每次游戏向服务器发包都会调用 MakeMd5，input 里的明文包含：
+- 请求路径（如 `single_mode_ramen/tasting`）
+- 动作参数（训练类型、试吃会配方、地区选择 ID 等）
+- 回合号、角色 ID、剧本 ID
+
+通过 MakeMd5 调用的时间顺序，可以还原一回合内的操作序列：
+```
+训练请求 → 试吃会请求 → 地区选择请求 → RMJ结算请求
+```
+
+**不读内存，不会导致闪退。** 关键回合自动采集。
+
+### 层 2：/api/sniff/metadata — 协议层观测
+
+被动拦截 HTTP 请求/响应，记录 URL + headers + 压缩后 body。
+不读内存，安全。
+
+### 层 3：/summary + /debug/* — 内存读取
+
+主动调用 IL2CPP getter 读取运行时状态。
+可能触发闪退，低频调用。
+
+---
+
 ## 完整响应结构
 
 ```
