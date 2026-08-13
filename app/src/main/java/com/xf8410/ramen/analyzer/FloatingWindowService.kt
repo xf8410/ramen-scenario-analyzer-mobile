@@ -37,7 +37,9 @@ class FloatingWindowService : Service() {
 
     private val handler = Handler(Looper.getMainLooper())
     private val soClient = SoClient()
+    private lateinit var dataCollector: DataCollector
     private var pollInterval = 2000L
+    private var lastTurn = -1
 
     private val pollRunnable = object : Runnable {
         override fun run() {
@@ -46,6 +48,12 @@ class FloatingWindowService : Service() {
                 val isRamen = summary?.scenario?.contains("Ramen") == true
                 val displayText = if (summary != null && isRamen) {
                     val result = RamenAnalyzer.analyze(summary)
+                    // 关键回合自动采集原始数据
+                    val turn = summary.turnNum
+                    if (turn != lastTurn) {
+                        dataCollector.maybeAutoCapture(turn)
+                        lastTurn = turn
+                    }
                     // 拉面杯场景：快速轮询
                     pollInterval = 2000L
                     result.toDisplayText()
@@ -70,6 +78,7 @@ class FloatingWindowService : Service() {
     override fun onCreate() {
         super.onCreate()
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
+        dataCollector = DataCollector(this)
         createFloatingWindow()
         handler.postDelayed(pollRunnable, 1000)
     }
