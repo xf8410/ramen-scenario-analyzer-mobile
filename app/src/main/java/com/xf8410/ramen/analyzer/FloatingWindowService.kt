@@ -49,6 +49,7 @@ class FloatingWindowService : Service() {
                 val isRamen = summary?.scenario?.contains("Ramen") == true
                 val displayText = if (summary != null && isRamen) {
                     val result = RamenAnalyzer.analyze(summary)
+                    val recommendation = TrainingAdvisor.advise(summary)
                     // 关键回合自动采集原始数据
                     val turn = summary.turnNum
                     if (turn != lastTurn) {
@@ -57,7 +58,8 @@ class FloatingWindowService : Service() {
                     }
                     // 拉面杯场景：快速轮询
                     pollInterval = 2000L
-                    result.toDisplayText()
+                    titleView?.let { it.text = "T$turn ★${recommendation.bestAction}" }
+                    recommendation.toDisplayText() + "\n\n" + result.toDisplayText()
                 } else if (summary != null) {
                     // 非拉面杯场景：降频
                     pollInterval = 10000L
