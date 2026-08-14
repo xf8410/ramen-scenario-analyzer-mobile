@@ -26,11 +26,47 @@ object TrainingAdvisor {
 
     // ===== 卡组配置：3速1耐1智1友人 =====
     // statusWeights: 速, 耐, 力, 根, 智
-    // 3速卡 → 速度权重最高
-    // 1耐卡 → 耐力中等
-    // 1智卡 → 智力中等
-    // 力/根无卡 → 0，没卡就没彩圈，训练收益低，不值得浪费回合
-    private val STATUS_WEIGHTS = doubleArrayOf(10.0, 5.0, 0.0, 0.0, 6.0)
+    // 基础权重：3速卡速度最高，1耐1智中等，力根无卡但仍需练
+    private val STATUS_WEIGHTS_BASE = doubleArrayOf(10.0, 5.0, 3.0, 2.0, 6.0)
+
+    // 属性上限（拉面杯五维上限通常1200）
+    private val STATUS_CAP = intArrayOf(1200, 1200, 1200, 1200, 1200)
+
+    /**
+     * 动态权重：属性越接近上限，权重越低（速度溢出时转移给力根等）
+     * 使用对数衰减：weight = base * (1 - current/cap) * 某系数
+     * 但保证不低于基础值的20%，避免完全不练
+     */
+    private fun dynamicWeights(fiveStatus: IntArray): DoubleArray {
+        val weights = DoubleArray(5)
+        var totalReduction = 0.0  // 被削减的权重总量
+        var totalCapacity = 0.0   // 还有空间的属性的总权重
+
+        for (i in 0..4) {
+            val ratio = fiveStatus[i].toDouble() / STATUS_CAP[i]
+            if (ratio >= 0.85) {
+                // 接近上限：权重大幅削减
+                val factor = max(0.2, 1.0 - (ratio - 0.85) * 4.0)  // 85%→1.0, 100%→0.2
+                weights[i] = STATUS_WEIGHTS_BASE[i] * factor
+                totalReduction += STATUS_WEIGHTS_BASE[i] * (1.0 - factor)
+            } else {
+                weights[i] = STATUS_WEIGHTS_BASE[i]
+                totalCapacity += STATUS_WEIGHTS_BASE[i]
+            }
+        }
+
+        // 把削减的权重按比例转移给还有空间的属性
+        if (totalCapacity > 0 && totalReduction > 0) {
+            for (i in 0..4) {
+                val ratio = fiveStatus[i].toDouble() / STATUS_CAP[i]
+                if (ratio < 0.85) {
+                    weights[i] += totalReduction * (STATUS_WEIGHTS_BASE[i] / totalCapacity)
+                }
+            }
+        }
+
+        return weights
+    }
 
     // ===== 估值参数（与hzyhhzy原版一致）=====
     private const val JIBAN_VALUE = 12.0          // 每点羁绊的估值
@@ -111,6 +147,9 @@ object TrainingAdvisor {
         )
         val fiveStatusLimit = intArrayOf(1200, 1200, 1200, 1200, 1200) // 默认上限
 
+        // 动态权重：速度快溢出时降权，转移给力根等
+        val statusWeights = dynamicWeights(fiveStatus)
+
         // 体力
         val vital = chara?.vital ?: 0
         val maxVital = chara?.maxVital ?: 100
@@ -189,7 +228,7 @@ object TrainingAdvisor {
             for (sta in 0 until 5) {
                 val s0 = statusSoftFunction(-remain[sta], reserve, reserveInvX2)
                 val s1 = statusSoftFunction(gains[sta] - remain[sta], reserve, reserveInvX2)
-                statusValue += STATUS_WEIGHTS[sta] * (s1 - s0)
+                statusValue += statusWeights[sta] * (s1 - s0)
             }
 
             // 羁绊估值
@@ -217,7 +256,7 @@ object TrainingAdvisor {
 
                 // 灵感估值
                 if (p.isTipsEvent) {
-                    val hintBonus = 1.6 * STATUS_WEIGHTS.sum()
+                    val hintBonus = 1.6 * statusWeights.sum()
                     bondValue += hintBonus * hintProb
                 }
             }
@@ -267,6 +306,7 @@ object TrainingAdvisor {
             bestAction = bestOption?.action ?: "未知",
             options = options.sortedByDescending { it.value },
             ramenAdvice = ramenAdvice,
+            dynamicWeights = statusWeights,
         )
     }
 
@@ -353,6 +393,7 @@ object TrainingAdvisor {
         val bestAction: String,
         val options: List<TrainingOption>,
         val ramenAdvice: String,
+        val dynamicWeights: DoubleArray = doubleArrayOf(10.0, 5.0, 3.0, 2.0, 6.0),
     ) {
         fun toDisplayText(): String {
             val sb = StringBuilder()
@@ -361,6 +402,9 @@ object TrainingAdvisor {
             if (ramenAdvice.isNotEmpty()) {
                 sb.appendLine(ramenAdvice)
             }
+            // 显示当前动态权重
+            val w = dynamicWeights
+            sb.appendLine("权重: 速${w[0].toInt()} 耐${w[1].toInt()} 力${w[2].toInt()} 根${w[3].toInt()} 智${w[4].toInt()}")
             sb.appendLine("── 各选项估值 ──")
             for (opt in options) {
                 val mark = if (opt.isBest) "▶" else " "
