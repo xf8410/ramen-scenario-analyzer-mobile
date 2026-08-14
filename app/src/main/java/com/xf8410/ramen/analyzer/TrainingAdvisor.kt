@@ -29,8 +29,8 @@ object TrainingAdvisor {
     // 基础权重：3速卡速度最高，1耐1智中等，力根无卡但仍需练
     private val STATUS_WEIGHTS_BASE = doubleArrayOf(10.0, 5.0, 3.0, 2.0, 6.0)
 
-    // 属性上限（拉面杯五维上限通常1200）
-    private val STATUS_CAP = intArrayOf(1200, 1200, 1200, 1200, 1200)
+    // 属性上限：速2200, 耐力1700, 力量1700, 根性1700, 智力1800
+    private val STATUS_CAP = intArrayOf(2200, 1700, 1700, 1700, 1800)
 
     /**
      * 动态权重：属性越接近上限，权重越低（速度溢出时转移给力根等）
@@ -145,7 +145,7 @@ object TrainingAdvisor {
             chara?.guts ?: 0,
             chara?.wiz ?: 0
         )
-        val fiveStatusLimit = intArrayOf(1200, 1200, 1200, 1200, 1200) // 默认上限
+        val fiveStatusLimit = intArrayOf(2200, 1700, 1700, 1700, 1800)
 
         // 动态权重：速度快溢出时降权，转移给力根等
         val statusWeights = dynamicWeights(fiveStatus)
