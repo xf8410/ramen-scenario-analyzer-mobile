@@ -76,6 +76,8 @@ data class UrafEffect(
 )
 
 data class TrainingInfo(
+    @SerializedName("name") val name: String? = null,
+    @SerializedName("command_id") val commandId: Int = 0,
     @SerializedName("train_type") val trainType: Int = 0,
     @SerializedName("speed") val speed: Int = 0,
     @SerializedName("stamina") val stamina: Int = 0,
@@ -83,4 +85,40 @@ data class TrainingInfo(
     @SerializedName("guts") val guts: Int = 0,
     @SerializedName("wiz") val wiz: Int = 0,
     @SerializedName("is_enable") val isEnable: Int = 0,
+    @SerializedName("failure_rate") val failureRate: Int = 0,
+    @SerializedName("heads") val heads: Int = 0,
+    @SerializedName("shining") val shining: Int = 0,
+    @SerializedName("partner_ids") val partnerIds: List<Int>? = null,
+    @SerializedName("partners") val partners: List<SupportCardPartner>? = null,
+    @SerializedName("gains") val gains: Map<String, Int>? = null,
+)
+
+/**
+ * 训练中出现的每个支援卡伙伴
+ *
+ * SO /summary 输出，每个 training entry 的 partners 数组元素。
+ *
+ * 字段含义：
+ * - current_bond: 当前羁绊值
+ * - is_shining: 是否彩圈（当前训练可触发友情训练）
+ * - is_unique_active: 固有效果是否已激活（current_bond >= bond_threshold）
+ * - bond_threshold: 固有效果激活羁绊门槛（MDB support_card_unique_effect type_0=101 value_0）
+ * - support_card_type: MDB 卡类别（1=普通, 2=友人, 3=团体）
+ *   注意：与 cardDB.json 的 cardType（0=速,1=耐,...,5=友,6=团）不同！
+ * - is_tips_event: 是否灵感事件（hint event）
+ * - partner_type: 伙伴类型（1=支援卡, 0=NPC/理事长/记者等）
+ * - bond_gain: 本次训练羁绊增量（SO 当前输出 null）
+ */
+data class SupportCardPartner(
+    @SerializedName("partner_id") val partnerId: Int = 0,
+    @SerializedName("support_position") val supportPosition: Int = 0,
+    @SerializedName("support_card_id") val supportCardId: Int = 0,
+    @SerializedName("current_bond") val currentBond: Int = 0,
+    @SerializedName("is_shining") val isShining: Boolean = false,
+    @SerializedName("is_unique_active") val isUniqueActive: Boolean = false,
+    @SerializedName("bond_threshold") val bondThreshold: Int = 0,
+    @SerializedName("support_card_type") val supportCardType: Int = 0,
+    @SerializedName("is_tips_event") val isTipsEvent: Boolean = false,
+    @SerializedName("partner_type") val partnerType: Int = 0,
+    @SerializedName("name") val name: String? = null,
 )

@@ -22,6 +22,10 @@ class MainActivity : ComponentActivity() {
 
         dataCollector = DataCollector(this)
 
+        // 预加载支援卡数据库
+        val cardDb = CardDatabase.getInstance(this)
+        val cardDbCount = cardDb?.let { it.toString() } ?: "null"
+
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(32, 48, 32, 32)
@@ -187,10 +191,12 @@ class MainActivity : ComponentActivity() {
 
     private fun updateStatus() {
         val snapshots = dataCollector.listLocalSnapshots()
+        val cardDbLoaded = CardDatabase.getInstance(this) != null
+        val cardDbInfo = if (cardDbLoaded) "已加载" else "未加载"
         statusText.text = if (snapshots.isEmpty()) {
-            "本地快照: 0"
+            "本地快照: 0  卡DB: $cardDbInfo"
         } else {
-            "本地快照: ${snapshots.size}\n最近: ${snapshots.first().name}"
+            "本地快照: ${snapshots.size}\n最近: ${snapshots.first().name}\n卡DB: $cardDbInfo"
         }
     }
 }

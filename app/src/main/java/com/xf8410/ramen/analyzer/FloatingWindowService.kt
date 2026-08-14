@@ -16,6 +16,7 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
 import android.widget.LinearLayout
+import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import kotlin.math.abs
@@ -131,7 +132,8 @@ class FloatingWindowService : Service() {
         }
         container.addView(titleView)
 
-        // 内容区
+        // 内容区（可滚动，支援卡列表可能较长）
+        val scrollView = ScrollView(this)
         textView = TextView(this).apply {
             text = "启动中..."
             setTextColor(Color.parseColor("#C0CAF5"))
@@ -139,8 +141,11 @@ class FloatingWindowService : Service() {
             typeface = Typeface.MONOSPACE
             setTextIsSelectable(false)
             setLineSpacing(2f, 1f)
+            // 限制最大高度，超出滚动
+            setMaxLines(30)
         }
-        container.addView(textView)
+        scrollView.addView(textView)
+        container.addView(scrollView)
 
         // 拖动支持
         var initialX = 0
