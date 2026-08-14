@@ -29,8 +29,8 @@ object TrainingAdvisor {
     // 3速卡 → 速度权重最高
     // 1耐卡 → 耐力中等
     // 1智卡 → 智力中等
-    // 力/根无卡但仍需练 → 给低权重，不会主动刷但出了彩圈也值得
-    private val STATUS_WEIGHTS = doubleArrayOf(10.0, 5.0, 3.0, 2.0, 6.0)
+    // 力/根无卡 → 0，没卡就没彩圈，训练收益低，不值得浪费回合
+    private val STATUS_WEIGHTS = doubleArrayOf(10.0, 5.0, 0.0, 0.0, 6.0)
 
     // ===== 估值参数（与hzyhhzy原版一致）=====
     private const val JIBAN_VALUE = 12.0          // 每点羁绊的估值
