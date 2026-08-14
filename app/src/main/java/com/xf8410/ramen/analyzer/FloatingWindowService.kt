@@ -81,6 +81,17 @@ class FloatingWindowService : Service() {
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
         dataCollector = DataCollector(this)
         createFloatingWindow()
+        // 启动时先加载本地缓存的卡DB，后台从 SO 刷新
+        CardDatabase.loadFromCache(this)
+        Thread {
+            val count = CardDatabase.fetchFromSo(this)
+            if (count > 0) {
+                handler.post {
+                    Toast.makeText(this, "卡DB已更新: ${count}张", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }.start()
+
         handler.postDelayed(pollRunnable, 1000)
     }
 

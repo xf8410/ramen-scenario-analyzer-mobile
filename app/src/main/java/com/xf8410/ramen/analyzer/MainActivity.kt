@@ -22,9 +22,10 @@ class MainActivity : ComponentActivity() {
 
         dataCollector = DataCollector(this)
 
-        // 预加载支援卡数据库
-        val cardDb = CardDatabase.getInstance(this)
-        val cardDbCount = cardDb?.let { it.toString() } ?: "null"
+        // 预加载支援卡数据库：先读本地缓存，后台再从 SO 刷新
+        CardDatabase.loadFromCache(this)
+        val cardDb = CardDatabase.getInstance()
+        val cardDbInfo = if (cardDb != null) "缓存${cardDb.size()}张" else "无缓存"
 
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -160,6 +161,25 @@ class MainActivity : ComponentActivity() {
             }
         })
 
+        // 从 SO 拉取支援卡DB
+        root.addView(Button(this).apply {
+            text = "从SO拉取支援卡DB\n(/mdb/raw)"
+            setOnClickListener {
+                Toast.makeText(this@MainActivity, "拉取中...", Toast.LENGTH_SHORT).show()
+                Thread {
+                    val count = CardDatabase.fetchFromSo(this@MainActivity)
+                    runOnUiThread {
+                        if (count > 0) {
+                            Toast.makeText(this@MainActivity, "拉取成功: ${count}张卡", Toast.LENGTH_LONG).show()
+                        } else {
+                            Toast.makeText(this@MainActivity, "拉取失败：SO未连接或查询出错", Toast.LENGTH_LONG).show()
+                        }
+                        updateStatus()
+                    }
+                }.start()
+            }
+        })
+
         // 状态显示
         statusText = TextView(this).apply {
             textSize = 13f
@@ -171,16 +191,14 @@ class MainActivity : ComponentActivity() {
         // 上游信息
         root.addView(TextView(this).apply {
             text = """
-                
+
                 -----
                 基于 URA-Plugins/OnsenScenarioAnalyzer 改写
                 原作者: EtherealAO / xulai1001
                 https://github.com/URA-Plugins
-                
+
                 数据来源: hlpatch SO 插件
                 https://github.com/xf8410/hlpatch
-                
-                字段字典: docs/field_dictionary.md
             """.trimIndent()
             textSize = 12f
             setPadding(0, 32, 0, 0)
@@ -191,8 +209,8 @@ class MainActivity : ComponentActivity() {
 
     private fun updateStatus() {
         val snapshots = dataCollector.listLocalSnapshots()
-        val cardDbLoaded = CardDatabase.getInstance(this) != null
-        val cardDbInfo = if (cardDbLoaded) "已加载" else "未加载"
+        val cardDb = CardDatabase.getInstance()
+        val cardDbInfo = if (cardDb != null) "缓存${cardDb.size()}张" else "无缓存"
         statusText.text = if (snapshots.isEmpty()) {
             "本地快照: 0  卡DB: $cardDbInfo"
         } else {
